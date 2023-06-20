@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const format = require("date-fns");
 const Exercise = require("../models/exercise");
 const User = require("../models/user");
 var ObjectId = require("mongoose").Types.ObjectId;
@@ -6,7 +7,7 @@ var ObjectId = require("mongoose").Types.ObjectId;
 //date handling
 function isValidDate(dateString) {
   var regEx = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateString.match(regEx)) return false; // Invalid format
+  return dateString.match(regEx) != null;
 }
 //userId format handling
 function isValidObjectId(id) {
@@ -18,7 +19,7 @@ function isValidObjectId(id) {
 }
 
 exports.postExercise = (req, res) => {
-  const date = req.body.date ? new Date(req.body.date) : new Date();
+  const date = req.body.date ? req.body.date : format.format(new Date(), 'yyyy-MM-dd');
   const newExercise = new Exercise({
     _id: new mongoose.Types.ObjectId(),
     userId: req.body._id,
@@ -27,10 +28,14 @@ exports.postExercise = (req, res) => {
     date: date,
   });
 
+
+
   if (!isValidObjectId(req.body._id)) {
     res.status(404);
     res.send("Invalid format of userId. UserId not found");
   }
+
+console.log(newExercise);
 
   User.findOne({ userId: req.body._id }).then((user) => {
     if (!user) {
@@ -53,10 +58,13 @@ exports.postExercise = (req, res) => {
       });
     })
     .catch((err) => {
+      console.log(err);
       if (err instanceof mongoose.Error.ValidationError) {
         res.status(422);
-        if (err.errors["duration"].kind === "Number") {
+        if (err.errors["duration"]?.kind === "Number") {
           res.send("Invalid format of duration");
+        } else if (err.errors["date"]?.kind === "user defined") {
+          res.send("Invalid format of date");
         } else {
           res.send("Fill required fields " + err);
         }

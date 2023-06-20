@@ -15,7 +15,14 @@ const exerciseSchema = new Schema({
     type: Number,
     required: true,
   },
-  date: String,
+  date: {
+    type: String,
+    validate: function(date) {
+      var regEx = /^\d{4}-\d{2}-\d{2}$/;
+      return date.match(regEx) != null;
+  },
+  message: 'bad date format',
+  },
 });
 
 module.exports = mongoose.model("Exercise", exerciseSchema);
