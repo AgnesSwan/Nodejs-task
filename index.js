@@ -34,6 +34,11 @@ app.get("/", (req, res) => {
 app.use("/api/users", UserRouter);
 app.use("/api/users", ExerciseRouter);
 
+app.all('*', function(req, res){
+  res.status(404);
+  res.send('Page not found. Bad URL or userId');
+  });
+
 const listener = app.listen(process.env.PORT || 3000, () => {
   console.log("Your app is listening on port " + listener.address().port);
 });
