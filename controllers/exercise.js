@@ -39,11 +39,6 @@ exports.postExercise = (req, res) => {
     }
   });
 
-  if (!isValidDate(req.body.date)) {
-    res.status(400);
-    res.send("Invalid date format");
-  }
-
   newExercise
     .save()
     .then((data) => {
