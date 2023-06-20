@@ -23,16 +23,9 @@ exports.postExercise = (req, res) => {
     _id: new mongoose.Types.ObjectId(),
     userId: req.body._id,
     description: req.body.description,
-    duration: parseInt(req.body.duration),
+    duration: req.body.duration,
     date: date,
   });
-
-  if (isValidDate(req.body.date)) {
-    return res.status(400).json({
-      message: "Invalid date format",
-    });
-  }
-
 
   if (!isValidObjectId(req.body._id)) {
     res.status(404);
@@ -45,6 +38,11 @@ exports.postExercise = (req, res) => {
       res.send("UserId not found");
     }
   });
+
+  if (!isValidDate(req.body.date)) {
+    res.status(400);
+    res.send("Invalid date format");
+  }
 
   newExercise
     .save()
@@ -60,9 +58,13 @@ exports.postExercise = (req, res) => {
       });
     })
     .catch((err) => {
-      if(err instanceof mongoose.Error.ValidationError) {
+      if (err instanceof mongoose.Error.ValidationError) {
         res.status(422);
-        res.send('Invalid data format')
+        if (err.errors["duration"].kind === "Number") {
+          res.send("Invalid format of duration");
+        } else {
+          res.send("Fill required fields " + err);
+        }
       }
       return res.status(400).json({
         message: "Something goes wrong: " + err,
