@@ -1,6 +1,21 @@
 const mongoose = require("mongoose");
 const Exercise = require("../models/exercise");
 const User = require("../models/user");
+var ObjectId = require("mongoose").Types.ObjectId;
+
+//date handling
+function isValidDate(dateString) {
+  var regEx = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateString.match(regEx)) return false; // Invalid format
+}
+//userId format handling
+function isValidObjectId(id) {
+  if (ObjectId.isValid(id)) {
+    if (String(new ObjectId(id)) === id) return true;
+    return false;
+  }
+  return false;
+}
 
 exports.postExercise = (req, res) => {
   const date = req.body.date ? new Date(req.body.date) : new Date();
@@ -8,20 +23,51 @@ exports.postExercise = (req, res) => {
     _id: new mongoose.Types.ObjectId(),
     userId: req.body._id,
     description: req.body.description,
-    duration: req.body.duration,
+    duration: parseInt(req.body.duration),
     date: date,
   });
- 
-  newExercise.save((err, data) => {
-    if (err) {
-        res.send("Error in saving the exercise: " + err);
-    }
-    if (!data) {
-      res.send("Exercise was unable to be saved. Fill all required fields (description, duration)");
-    } else {
-      res.redirect("http://localhost:3000/api/users");
+
+  if (isValidDate(req.body.date)) {
+    return res.status(400).json({
+      message: "Invalid date format",
+    });
+  }
+
+
+  if (!isValidObjectId(req.body._id)) {
+    res.status(404);
+    res.send("Invalid format of userId. UserId not found");
+  }
+
+  User.findOne({ userId: req.body._id }).then((user) => {
+    if (!user) {
+      res.status(404);
+      res.send("UserId not found");
     }
   });
+
+  newExercise
+    .save()
+    .then((data) => {
+      if (!data) {
+        return res.status(400).json({
+          message: "Fill all required fields",
+        });
+      }
+      return res.status(201).json({
+        message: "Success",
+        data: data,
+      });
+    })
+    .catch((err) => {
+      if(err instanceof mongoose.Error.ValidationError) {
+        res.status(422);
+        res.send('Invalid data format')
+      }
+      return res.status(400).json({
+        message: "Something goes wrong: " + err,
+      });
+    });
 };
 
 exports.getExercisesByUserId = (req, res) => {
@@ -30,7 +76,8 @@ exports.getExercisesByUserId = (req, res) => {
     if (!data) {
       res.send("No exercises");
     } else {
-      res.json(data);
+      res.status(201);
+      res.json({ message: "success", data });
     }
   });
 };
@@ -42,18 +89,12 @@ exports.getUserLogs = (req, res) => {
   if (!limit || Number.isInteger(limit) || limit < 0) {
     limit = null;
   }
-  //date handling
-  function isValidDate(dateString) {
-    var regEx = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateString.match(regEx)) return false; // Invalid format
-  }
-
   if (!from || !isValidDate(from)) from = null;
   if (!to || !isValidDate(to)) to = null;
 
   User.findById(id, (err, data) => {
     if (!data) {
-      console.log(err);
+      res.status(404);
       res.send("Unknown user id");
     } else {
       const userName = data.username;
