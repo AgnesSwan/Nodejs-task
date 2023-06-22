@@ -5,21 +5,11 @@ const User = require("../models/user");
 var ObjectId = require("mongoose").Types.ObjectId;
 
 //date handling
-function isValidDate(dateString) {
-  var regEx = /^\d{4}-\d{2}-\d{2}$/;
-  return dateString.match(regEx) != null;
-}
-//userId format handling
-function isValidObjectId(id) {
-  if (ObjectId.isValid(id)) {
-    if (String(new ObjectId(id)) === id) return true;
-    return false;
-  }
-  return false;
-}
 
 exports.postExercise = (req, res) => {
-  const date = req.body.date ? req.body.date : format.format(new Date(), 'yyyy-MM-dd');
+  const date = req.body.date
+    ? req.body.date
+    : format.format(new Date(), "yyyy-MM-dd");
   const newExercise = new Exercise({
     _id: new mongoose.Types.ObjectId(),
     userId: req.body._id,
@@ -28,117 +18,131 @@ exports.postExercise = (req, res) => {
     date: date,
   });
 
-
-
-  if (!isValidObjectId(req.body._id)) {
-    res.status(404);
-    res.send("Invalid format of userId. UserId not found");
-  }
-
-console.log(newExercise);
-
-  User.findOne({ userId: req.body._id }).then((user) => {
-    if (!user) {
-      res.status(404);
-      res.send("UserId not found");
-    }
-  });
-
-  newExercise
-    .save()
-    .then((data) => {
-      if (!data) {
-        return res.status(400).json({
-          message: "Fill all required fields",
-        });
-      }
-      return res.status(201).json({
-        message: "Success",
-        data: data,
-      });
-    })
-    .catch((err) => {
-      console.log(err);
-      if (err instanceof mongoose.Error.ValidationError) {
-        res.status(422);
-        if (err.errors["duration"]?.kind === "Number") {
-          res.send("Invalid format of duration");
-        } else if (err.errors["date"]?.kind === "user defined") {
-          res.send("Invalid format of date");
-        } else {
-          res.send("Fill required fields " + err);
-        }
-      }
-      return res.status(400).json({
-        message: "Something goes wrong: " + err,
-      });
-    });
-};
-
-exports.getExercisesByUserId = (req, res) => {
-  const { id } = req.params;
-  Exercise.findOne({ userId: id }, (err, data) => {
-    if (!data) {
-      res.send("No exercises");
-    } else {
-      res.status(201);
-      res.json({ message: "success", data });
-    }
-  });
-};
-
-exports.getUserLogs = (req, res) => {
-  const id = req.params.id;
-  var { from, to, limit } = req.query;
-  //limit handling
-  if (!limit || Number.isInteger(limit) || limit < 0) {
-    limit = null;
-  }
-  if (!from || !isValidDate(from)) from = null;
-  if (!to || !isValidDate(to)) to = null;
-
-  User.findById(id, (err, data) => {
+  User.findById({ _id: req.body._id }, (err, data) => {
     if (!data) {
       res.status(404);
       res.send("Unknown user id");
     } else {
-      const userName = data.username;
-      Exercise.find(
-        { userId: id },
-        { date: { $gte: new Date(from), $lte: new Date(to) } }
-      )
-        .select(["username", "description", "duration", "date", "userId"])
-        .limit(+limit)
-        .exec((err, data) => {
+      newExercise
+        .save()
+        .then((data) => {
           if (!data) {
-            res.json({
-              _id: id,
-              username: userName,
-              count: 0,
-              log: [],
+            return res.status(400).json({
+              message: "Fill all required fields",
             });
-          } else {
-            let exerciseData = [];
-            try {
-              data.map((exercise) => {
-                let dateFormatted = new Date(exercise.date).toDateString();
-                return {
-                  description: exercise.description,
-                  duration: exercise.duration,
-                  date: dateFormatted,
-                };
+          }
+          return res.status(201).json({
+            message: "Success",
+            data: data,
+          });
+        })
+        .catch((err) => {
+          if (err instanceof mongoose.Error.ValidationError) {
+            if (err.errors["duration"]?.kind === "Number") {
+              return res.status(422).json({
+                message: "Bad duration format. " + err,
               });
-              res.json({
-                username: userName,
-                count: data.length,
-                _id: id,
-                log: exerciseData,
+            } else if (err.errors["date"]?.kind === "user defined") {
+              return res.status(422).json({
+                message: "Bad date format. " + err,
               });
-            } catch (e) {
-              console.log(e.message);
+            } else {
+              return res.status(422).json({
+                message: "Fill all required: " + err,
+              });
             }
           }
+          return res.status(400).json({
+            message: "Something goes wrong: " + err,
+          });
         });
     }
   });
+};
+
+const findUserById = async (id, res) => {
+  try{
+        let user = await User.findById({ _id: id });
+    return user;
+  }
+catch(e) {
+  if (e instanceof mongoose.Error.CastError) {
+    res?.status(404);
+    res?.send('Invalid format of user id');
+    return;
+  }
+  console.log(e);
+}
+};
+
+exports.getUserLogs = async (req, res) => {
+  let { from, to, limit } = req.query;
+ 
+    if(Object.hasOwn(req.query, 'from') || Object.hasOwn(req.query, 'limit') || Object.hasOwn(req.query, 'to') || req.query === {}) {
+      console.log('ok')
+    } else {
+      res.status(404);
+      res.send('unknown query params');
+      return;
+    }
+
+  function isValidDate(date) {
+    var regEx = /^\d{4}-\d{2}-\d{2}$/;
+    return date?.match(regEx) != null;
+  }
+  //limit handling
+  if (!limit || Number.isInteger(limit) || limit < 0) {
+    limit = null;
+  }
+  if (!from) from = null;
+  if (from && !isValidDate(from)) {
+    res.send("invalid from format");
+    return;
+  }
+  if (!to) to = null;
+  if (to && !isValidDate(to)) {
+    res.send("invalid from format");
+    return;
+  }
+
+  
+    let user = await findUserById({id: req.params.id, res: res})
+
+    if (!user) {
+    res.status(404);
+    res.send("Unknown user id");
+  } else {
+    let conditions = [{ userId: user._id }];
+    if (!!from) {
+      conditions.push({ date: { $gte: from } });
+    }
+    if (!!to) {
+      conditions.push({ date: { $lte: to } });
+    }
+    let final_condition = conditions.length ? { $and: conditions } : {};
+    Exercise.find(final_condition)
+      .limit(+limit)
+      .exec((err, data) => {
+        try {
+          let exerciseData = data?.map((exercise) => {
+            let dateFormatted = new Date(exercise.date);
+            return {
+              description: exercise.description,
+              duration: exercise.duration,
+              date: dateFormatted,
+            };
+          });
+          res.json({
+            username: user.username,
+            count: data.length,
+            _id: user._id,
+            log: exerciseData,
+          });
+        } catch (e) {
+          res.status(400);
+          res.send("Something goes wrong");
+        }
+      });
+  }    
+
 };
