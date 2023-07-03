@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
+
 const format = require("date-fns");
 const Exercise = require("../models/exercise");
 const User = require("../models/user");
-var ObjectId = require("mongoose").Types.ObjectId;
 
 //date handling
 
@@ -60,31 +60,26 @@ exports.postExercise = (req, res) => {
   });
 };
 
-const findUserById = async (id, res) => {
-  try{
-        let user = await User.findById({ _id: id });
-    return user;
-  }
-catch(e) {
-  if (e instanceof mongoose.Error.CastError) {
-    res?.status(404);
-    res?.send('Invalid format of user id');
+exports.getUserLogs = async (req, res) => {
+  let id = req.params._id;
+
+  let user;
+
+  let { from, to, limit } = req.query;
+
+  if (
+    Object.hasOwn(req.query, "from") ||
+    Object.hasOwn(req.query, "limit") ||
+    Object.hasOwn(req.query, "to") ||
+    !Object.keys(req.query).length
+  ) {
+    console.log("ok");
+  } else {
+    console.log(req.query);
+    res.status(404);
+    res.send("unknown query params");
     return;
   }
-  console.log(e);
-}
-};
-
-exports.getUserLogs = async (req, res) => {
-  let { from, to, limit } = req.query;
- 
-    if(Object.hasOwn(req.query, 'from') || Object.hasOwn(req.query, 'limit') || Object.hasOwn(req.query, 'to') || req.query === {}) {
-      console.log('ok')
-    } else {
-      res.status(404);
-      res.send('unknown query params');
-      return;
-    }
 
   function isValidDate(date) {
     var regEx = /^\d{4}-\d{2}-\d{2}$/;
@@ -105,44 +100,56 @@ exports.getUserLogs = async (req, res) => {
     return;
   }
 
-  
-    let user = await findUserById({id: req.params.id, res: res})
-
+  //finding user
+  try {
+    user = await User.findById(id);
     if (!user) {
-    res.status(404);
-    res.send("Unknown user id");
-  } else {
-    let conditions = [{ userId: user._id }];
-    if (!!from) {
-      conditions.push({ date: { $gte: from } });
+      res?.status(404);
+      res?.send("No user found");
+      return;
     }
-    if (!!to) {
-      conditions.push({ date: { $lte: to } });
+  } catch (e) {
+    if (e instanceof mongoose.Error.CastError) {
+      res?.status(404);
+      res?.send("Invalid format of user id");
+      return;
     }
-    let final_condition = conditions.length ? { $and: conditions } : {};
-    Exercise.find(final_condition)
-      .limit(+limit)
-      .exec((err, data) => {
-        try {
-          let exerciseData = data?.map((exercise) => {
-            let dateFormatted = new Date(exercise.date);
-            return {
-              description: exercise.description,
-              duration: exercise.duration,
-              date: dateFormatted,
-            };
-          });
-          res.json({
-            username: user.username,
-            count: data.length,
-            _id: user._id,
-            log: exerciseData,
-          });
-        } catch (e) {
-          res.status(400);
-          res.send("Something goes wrong");
-        }
-      });
-  }    
+    console.log(e);
+  }
 
+  //optional params checking
+  let conditions = [{ userId: user._id }];
+  if (!!from) {
+    conditions.push({ date: { $gte: from } });
+  }
+  if (!!to) {
+    conditions.push({ date: { $lte: to } });
+  }
+  let final_condition = conditions.length ? { $and: conditions } : {};
+
+  //finding exercise
+  Exercise.find(final_condition)
+    .limit(+limit)
+    .exec((err, data) => {
+      try {
+        let exerciseData = data?.map((exercise) => {
+          let dateFormatted = new Date(exercise.date);
+          return {
+            description: exercise.description,
+            duration: exercise.duration,
+            date: dateFormatted,
+          };
+        });
+        res.status(200);
+        res.send({
+          username: user.username,
+          count: data.length,
+          _id: user._id,
+          log: exerciseData,
+        });
+      } catch (e) {
+        res.status(400);
+        res.send("Something goes wrong");
+      }
+    });
 };
