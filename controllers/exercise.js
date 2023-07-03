@@ -130,6 +130,9 @@ exports.getUserLogs = async (req, res) => {
   //finding exercise
   Exercise.find(final_condition)
     .limit(+limit)
+    .sort({
+      date: 1, //sort by date ASC
+    })
     .exec((err, data) => {
       try {
         let exerciseData = data?.map((exercise) => {
